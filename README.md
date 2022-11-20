@@ -72,31 +72,97 @@ class TextRNN(nn.Module):
         '''end'''
         return model_output
 ```
-2.LSTM的简洁实现
-class TextRNN(nn.Module):#LSTM调用库来实现
-
+2.双层LSTM的实现
+```
+class TextRNN(nn.Module):
     def __init__(self):
-        super(TextRNN, self).__init__()#!!!
-        #self.cnt = 0
+        super(TextRNN, self).__init__()#！！！！注意改名
         self.C = nn.Embedding(n_class, embedding_dim=emb_size,device=device)
-        self.LSTM = nn.LSTM(input_size=emb_size, hidden_size=n_hidden,device=device)
+
+        # '''define the parameter of RNN'''
+        # '''begin'''
+        # ##Complete this code
+        # self.W_ax = nn.Linear(emb_size,n_hidden,bias=False,device=device)
+        # self.W_aa = nn.Linear(n_hidden,n_hidden,bias=False,device=device)
+        # self.b_a = nn.Parameter(torch.ones([n_hidden])).to(device)
+        # '''end'''
+        #
+        # self.tanh = nn.Tanh()
+        '''define the parameter of LSTM'''
+        '''begin'''
+        self.W_xi=nn.Linear(emb_size,n_hidden)
+        self.W_hi=nn.Linear(n_hidden,n_hidden)
+        self.b_i=nn.Parameter(torch.ones([n_hidden]))
+
+        self.W_xf=nn.Linear(emb_size,n_hidden)
+        self.W_hf=nn.Linear(n_hidden,n_hidden)
+        self.b_f=nn.Parameter(torch.ones([n_hidden]))
+
+        self.W_xo=nn.Linear(emb_size,n_hidden)
+        self.W_ho=nn.Linear(n_hidden,n_hidden)
+        self.b_o=nn.Parameter(torch.ones([n_hidden]))
+
+        self.W_xc=nn.Linear(emb_size,n_hidden)
+        self.W_hc=nn.Linear(n_hidden,n_hidden)
+        self.b_c=nn.Parameter(torch.ones([n_hidden]))
+
+        self.W_xi2 = nn.Linear(n_hidden, n_hidden)
+        self.W_hi2 = nn.Linear(n_hidden, n_hidden)
+        self.b_i2 = nn.Parameter(torch.ones([n_hidden]))
+
+        self.W_xf2 = nn.Linear(n_hidden, n_hidden)
+        self.W_hf2 = nn.Linear(n_hidden, n_hidden)
+        self.b_f2 = nn.Parameter(torch.ones([n_hidden]))
+
+        self.W_xo2 = nn.Linear(n_hidden, n_hidden)
+        self.W_ho2 = nn.Linear(n_hidden, n_hidden)
+        self.b_o2 = nn.Parameter(torch.ones([n_hidden]))
+
+        self.W_xc2 = nn.Linear(n_hidden, n_hidden)
+        self.W_hc2 = nn.Linear(n_hidden, n_hidden)
+        self.b_c2 = nn.Parameter(torch.ones([n_hidden]))
+
+        self.tanh=nn.Tanh()
+        self.sigmoid=nn.Sigmoid()
+        '''end'''
         self.W = nn.Linear(n_hidden, n_class, bias=False,device=device)
         self.b = nn.Parameter(torch.ones([n_class])).to(device)
-
+        self.softmax=nn.Softmax(dim=-1)
 
     def forward(self, X):
+
         X = self.C(X)
         #print(X.is_cuda)
-        X = X.transpose(0, 1) # X : [n_step, batch_size, embeding size]
-        outputs, hidden = self.LSTM(X)
-        # outputs : [n_step, batch_size, num_directions(=1) * n_hidden]
-        # hidden : [num_layers(=1) * num_directions(=1), batch_size, n_hidden]
-        outputs = outputs[-1] # [batch_size, num_directions(=1) * n_hidden]
-        model = self.W(outputs) + self.b # model : [batch_size, n_class]
-        return model
-
-3.RNN的从头实现(略)
-4.RNN的简洁实现(略)
+        X = X.transpose(0, 1) # X : [n_step, batch_size, n_class]
+        sample_size = X.size()[1]
+        '''do this RNN forward'''
+        '''begin'''
+        ##Complete your code with the hint: a^(t) = tanh(W_{ax}x^(t)+W_{aa}a^(t-1)+b_{a})  y^(t)=softmx(Wa^(t)+b)
+        c_t = torch.zeros(1,n_hidden,device=device)
+        h_t= torch.zeros(1,n_hidden,device=device)
+        model_output=0
+        H=list()
+        for x in X:
+            i_t=self.sigmoid(self.W_xi(x)+self.W_hi(h_t)+self.b_i)
+            f_t=self.sigmoid(self.W_xf(x)+self.W_hf(h_t)+self.b_f)
+            o_t=self.sigmoid(self.W_xo(x)+self.W_ho(h_t)+self.b_o)
+            c_t=f_t*c_t+i_t*self.tanh(self.W_xc(x)+self.W_hc(h_t)+self.b_c)
+            h_t=o_t*self.tanh(c_t)
+            H.append(h_t)
+            #a_t=self.tanh(self.W_ax(x)+self.W_aa(a_t)+self.b_a)
+        h_t2 = torch.zeros(1, n_hidden, device=device)
+        c_t2 = torch.zeros(1, n_hidden, device=device)
+        for x in H:
+            i_t2=self.sigmoid(self.W_xi2(x)+self.W_hi2(h_t2)+self.b_i2)
+            f_t2=self.sigmoid(self.W_xf2(x)+self.W_hf2(h_t2)+self.b_f2)
+            o_t2=self.sigmoid(self.W_xo2(x)+self.W_ho2(h_t2)+self.b_o2)
+            c_t2=f_t2*c_t2+i_t2*self.tanh(self.W_xc2(x)+self.W_hc2(h_t2)+self.b_c2)
+            h_t2=o_t2*self.tanh(c_t2)
+            #a_t=self.tanh(self.W_ax(x)+self.W_aa(a_t)+self.b_a)
+        model_output = self.W(h_t2) + self.b
+        '''end'''
+        return model_output
+```
 
 
 （三）训练，验证与测试模块   
@@ -160,7 +226,7 @@ Batch_size增大可以提速，但是性能可能会下降
 第四组实验
 分别用之前调优的参数去分别测试从头实现、调库实现的LSTM和RNN，进行四组实验
 	
-![图片](https://user-images.githubusercontent.com/66310692/202902258-e5ff9f75-1540-4856-a775-ac39c3c1ce99.png)
+![图片](https://user-images.githubusercontent.com/66310692/202906304-7dd7fa0b-9a74-453f-8fa3-4d7c40df1d84.png)
 实验分析：LSTM的调库和从头实现对比，调库实现LSTM速度快很多，在性能上手动实现的略高
 RNN的调库和从头实现差距不大
 LSTM比RNN性能略高
